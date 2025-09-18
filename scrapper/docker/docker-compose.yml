@@ -1,0 +1,51 @@
+services:
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["${REDIS_PORT:-6379}:6379"]
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: scraper
+      POSTGRES_PASSWORD: scraper
+      POSTGRES_DB: scraper
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  crawler:
+    build: ..
+    image: evertale/scrapper-crawler:latest
+    working_dir: /app/scrapper/scrapy_app
+    environment:
+      - REDIS_URL=redis://redis:${REDIS_PORT:-6379}/0
+      - RAW_OUT_DIR=/data/raw/novels
+      - METRICS_PORT=${METRICS_PORT:-8000}
+      - LOG_LEVEL=INFO
+      - POSTGRES_DSN=dbname=scraper user=scraper password=scraper host=postgres port=${POSTGRES_PORT:-5432}
+      - SCRAPPER_SETTINGS_YAML=/app/scrapper/config/settings.yaml
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ../../data:/data
+    command: ["scrapy", "crawl", "novel_toc", "-s", "SETTINGS_MODULE=scrapper_app.settings", "-a", "target=empirenovel"]
+    ports:
+      - "${METRICS_PORT:-8000}:8000"  # Prometheus metrics
+
+  seeder:
+    image: evertale/scrapper-crawler:latest
+    working_dir: /app
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:${REDIS_PORT:-6379}/0
+    command: ["python", "scrapper/tools/seed.py", "--redis", "redis://redis:${REDIS_PORT:-6379}/0", "--key", "start_urls:novel_toc", "--target", "empirenovel"]
+
+volumes:
+  pg_data:
+  redis_data:

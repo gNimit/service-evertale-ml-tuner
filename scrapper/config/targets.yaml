@@ -1,0 +1,18 @@
+site_empire_novel:
+  use_playwright: false
+  start_urls:
+    - https://www.empirenovel.com/novel/emperors-domination
+  toc:
+    # Try multiple selectors; the spider will try these in order
+    chapter_links:
+      - .chapter-list a::attr(href)
+      - .list-chapter a::attr(href)
+      - .wp-manga-chapter a::attr(href)
+      - .chapters a::attr(href)
+    next_page: a.next::attr(href)
+  chapter:
+    title: h1::text
+    # Try common containers; spider uses the first that matches
+    body: article, #chapter-content, .chapter-content
+    # Optional series selector; fallback derives from URL
+    series: h1.entry-title::text

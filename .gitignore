@@ -51,14 +51,6 @@ htmlcov/
 .tox/
 .nox/
 .hypothesis/
-.pytest_cache/
-.pyre/
-.pytype/
-.mypy_cache/
-.ruff_cache/
-
-# Type checkers / linters
-.pyright/
 .pyre/
 .pytype/
 .mypy_cache/
@@ -84,7 +76,6 @@ Thumbs.db
 
 # Environment variables / secrets
 .env
-.env.*
 *.env
 
 # Local tooling

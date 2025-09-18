@@ -1,0 +1,11 @@
+booktype
+scrapy>=2.11
+scrapy-redis>=0.7
+scrapy-playwright>=0.0.35
+redis>=5.0
+prometheus-client>=0.20
+trafilatura>=1.8
+pydantic>=2.9
+psycopg2-binary>=2.9
+PyYAML>=6.0
+itemadapter>=0.9

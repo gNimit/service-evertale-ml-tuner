@@ -1,0 +1,29 @@
+# Scrapper settings
+BOT_NAME: novel_scrapper
+ROBOTSTXT_OBEY: True
+
+# Concurrency & throttling
+CONCURRENT_REQUESTS: 48
+CONCURRENT_REQUESTS_PER_DOMAIN: 6
+DOWNLOAD_DELAY: 0.25
+
+# Output
+RAW_OUT_DIR: /data/raw/novels
+ROLL_MINUTES: 30
+
+# Redis start URLs key for RedisSpider
+REDIS_START_URLS_KEY: start_urls:novel_toc
+
+# Database (required)
+POSTGRES_DSN: "dbname=scraper user=scraper password=scraper host=postgres port=5432"
+
+# Metrics settings
+METRICS_ENABLED: True
+METRICS_PORT: 8000
+
+# Logging
+LOG_LEVEL: INFO
+
+# Spider settings
+SPIDER_MODULES: ["scrapper.spiders"]
+NEWSPIDER_MODULE: "scrapper.spiders"
