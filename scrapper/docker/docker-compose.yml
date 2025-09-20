@@ -18,7 +18,9 @@ services:
       - pg_data:/var/lib/postgresql/data
 
   crawler:
-    build: ..
+    build:
+      context: ../..
+      dockerfile: scrapper/docker/Dockerfile
     image: evertale/scrapper-crawler:latest
     working_dir: /app/scrapper/scrapy_app
     environment:
@@ -33,7 +35,7 @@ services:
       - postgres
     volumes:
       - ../../data:/data
-    command: ["scrapy", "crawl", "novel_toc", "-s", "SETTINGS_MODULE=scrapper_app.settings", "-a", "target=empirenovel"]
+    command: ["scrapy", "crawl", "novels", "-s", "SETTINGS_MODULE=scrapper_app.settings"]
     ports:
       - "${METRICS_PORT:-8000}:8000"  # Prometheus metrics
 
@@ -41,10 +43,11 @@ services:
     image: evertale/scrapper-crawler:latest
     working_dir: /app
     depends_on:
+      - crawler
       - redis
     environment:
       - REDIS_URL=redis://redis:${REDIS_PORT:-6379}/0
-    command: ["python", "scrapper/tools/seed.py", "--redis", "redis://redis:${REDIS_PORT:-6379}/0", "--key", "start_urls:novel_toc", "--target", "empirenovel"]
+    command: ["python", "scrapper/tools/seed.py", "--redis", "redis://redis:${REDIS_PORT:-6379}/0", "--key", "start_urls:novel_toc", "--target", "site_empire_novel"]
 
 volumes:
   pg_data:

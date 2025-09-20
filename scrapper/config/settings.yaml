@@ -8,7 +8,7 @@ CONCURRENT_REQUESTS_PER_DOMAIN: 6
 DOWNLOAD_DELAY: 0.25
 
 # Output
-RAW_OUT_DIR: /data/raw/novels
+RAW_OUT_DIR: ../.././data/raw/novels
 ROLL_MINUTES: 30
 
 # Redis start URLs key for RedisSpider

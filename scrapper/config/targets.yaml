@@ -1,18 +1,27 @@
 site_empire_novel:
   use_playwright: false
+  landing_kind: catalog        # or single
   start_urls:
-    - https://www.empirenovel.com/novel/emperors-domination
-  toc:
-    # Try multiple selectors; the spider will try these in order
-    chapter_links:
-      - .chapter-list a::attr(href)
-      - .list-chapter a::attr(href)
-      - .wp-manga-chapter a::attr(href)
-      - .chapters a::attr(href)
-    next_page: a.next::attr(href)
-  chapter:
+    - https://www.empirenovel.com/
+  catalog:
+    novel_links:
+      - h4 a::attr(href)
+    novel_title:
+      - h4 a::text
+    next_page: a.page-link[rel="next"]::attr(href)
+  novel_toc:
     title: h1::text
-    # Try common containers; spider uses the first that matches
-    body: article, #chapter-content, .chapter-content
-    # Optional series selector; fallback derives from URL
-    series: h1.entry-title::text
+    tags: a[itemprop="genre"]::text
+    author: span[itemprop="author"]::text
+    summary: span#more::text
+    chapter_links:
+      - a.chapter_link::attr(href)
+    next_page:
+      - a.page-link[rel="next"]::attr(href)
+  chapter:
+    title: h3::text
+    body: p::text
+    series: h1::text
+    chapter_num:
+      extract_from: url
+      pattern: '/novel/[^/]+/(\d+)'

@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY scrapper /app/scrapper
 
 # Default workdir for scrapy project
-WORKDIR /app/scrapper
+WORKDIR /app/scrapper/scrapy_app
 
 VOLUME ["/data"]
 

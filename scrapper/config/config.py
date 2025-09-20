@@ -20,7 +20,7 @@ def _find_scrapper_root():
     """
     current = Path(__file__).parent
     while current != current.parent:
-        if (current / "Makefile").exists() and (current / "scrappy_app").exists():
+        if (current / "Makefile").exists():
             return current
         current = current.parent
 

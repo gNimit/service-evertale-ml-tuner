@@ -7,7 +7,7 @@ from itemadapter import ItemAdapter
 
 
 class RollingJSONLPipeline:
-    def __init__(self, base_dir: str = "data/raw/novels", roll_minutes: int = 60):
+    def __init__(self, base_dir: str = "./data/raw/novels", roll_minutes: int = 60):
         self.base_dir = Path(base_dir)
         self.roll_minutes = roll_minutes
         self.fp = None
@@ -16,7 +16,7 @@ class RollingJSONLPipeline:
     @classmethod
     def from_crawler(cls, crawler):
         return cls(
-            base_dir=crawler.settings.get("RAW_OUT_DIR", "data/raw/novels"),
+            base_dir=crawler.settings.get("RAW_OUT_DIR", "./data/raw/novels"),
             roll_minutes=crawler.settings.getint("ROLL_MINUTES", 60),
         )
 

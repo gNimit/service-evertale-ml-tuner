@@ -14,13 +14,10 @@ scrapper-help:
 	@echo "  make scrapper-logs      # Tail crawler logs"
 	@echo "  make scrapper-seed      # Seed start URLs into Redis"
 
-scrapper-prep:
-	python scrapper/tools/apply_common.py --common scrapper/config/common.yaml --scrapper-env scrapper/docker/.env
-
-scrapper-build: scrapper-prep
+scrapper-build:
 	sudo docker compose -f $(SCRAPPER_COMPOSE) build
 
-scrapper-up: scrapper-prep
+scrapper-up:
 	mkdir -p $(DATA_DIR)
 	sudo docker compose -f $(SCRAPPER_COMPOSE) up -d
 
