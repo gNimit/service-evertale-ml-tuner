@@ -6,11 +6,14 @@ import re
 import time
 from urllib.parse import urljoin
 
-from prometheus_client.decorator import append
 from scrapy.http import Response, Request
 from scrapy_redis.spiders import RedisSpider
 
 from scrapper.config.config import get_targets, get_setting
+try:
+    from ..extensions.prometheus import NOVELS
+except Exception:
+    NOVELS = None
 
 
 class NovelSpider(RedisSpider):
@@ -86,6 +89,11 @@ class NovelSpider(RedisSpider):
 
         for index, href in enumerate(links):
             url = urljoin(response.url, href)
+            try:
+                if NOVELS is not None:
+                    NOVELS.labels(spider=self.name, target=str(t_key)).inc()
+            except Exception:
+                pass
             yield Request(
                 url,
                 callback=self.parse_toc,

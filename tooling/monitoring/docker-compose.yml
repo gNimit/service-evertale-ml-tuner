@@ -4,6 +4,7 @@ services:
     image: prom/prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../../scrapper/config/prometheus.yaml:/etc/prometheus/targets/scrapper.yaml:ro
     ports:
       - "9090:9090"
     extra_hosts:
