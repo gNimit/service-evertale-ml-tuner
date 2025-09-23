@@ -26,6 +26,20 @@ class NovelSpider(RedisSpider):
         async for request in super().start():
             yield request
 
+    # Helper to support str or list of CSS selectors; returns the first non-empty result (string)
+    def _first_css_get(self, response: Response, selectors):
+        if not selectors:
+            return None
+        if isinstance(selectors, (list, tuple)):
+            for sel in selectors:
+                if not sel:
+                    continue
+                val = response.css(sel).get()
+                if val:
+                    return val
+            return None
+        return response.css(selectors).get()
+
     def parse(self, response: Response, **kwargs):
         meta = response.meta
         t_key = meta.get("target_key")
@@ -62,13 +76,13 @@ class NovelSpider(RedisSpider):
         titles = []
         for index, sel in enumerate(novel_selectors):
             links_per_sel = response.css(sel).getall()
-            links_per_sel = links_per_sel[:1] # TODO: debug: only the first link, remove this later
 
             if links_per_sel:
                 links.extend(links_per_sel)
 
             if novel_title_sel and index < len(novel_title_sel):
-                titles.extend(response.css(novel_title_sel[index]).get())
+                # Use append since get() returns a single string (or None)
+                titles.append(response.css(novel_title_sel[index]).get())
 
         for index, href in enumerate(links):
             url = urljoin(response.url, href)
@@ -88,21 +102,20 @@ class NovelSpider(RedisSpider):
         # Catalog pagination
         next_page_sel = cat.get("next_page")
         if next_page_sel:
-            next_page_href = response.css(next_page_sel).get()
-            print(next_page_href)
-            # TODO: debug: only the first link, remove this later
-            # if next_page_href:
-            #     url = urljoin(response.url, next_page_href)
-            #     yield Request(
-            #         url,
-            #         callback=self.parse_catalog,
-            #         meta={
-            #             "target_key": t_key,
-            #             "page_type": "catalog",
-            #             "use_playwright": use_pw
-            #         },
-            #         dont_filter=True,
-            #     )
+            # Support next_page being a string or a list of selectors
+            next_page_href = self._first_css_get(response, next_page_sel)
+            if next_page_href:
+                url = urljoin(response.url, next_page_href)
+                yield Request(
+                    url,
+                    callback=self.parse_catalog,
+                    meta={
+                        "target_key": t_key,
+                        "page_type": "catalog",
+                        "use_playwright": use_pw
+                    },
+                    dont_filter=True,
+                )
 
     """
     Parse TOC pages.
@@ -138,7 +151,6 @@ class NovelSpider(RedisSpider):
         links = []
         for sel in chapter_selectors:
             links = response.css(sel).getall()
-            links = links[:1] # TODO: debug: only the first link, remove this later
             if links:
                 break
 
@@ -151,18 +163,18 @@ class NovelSpider(RedisSpider):
                 dont_filter=True,
             )
 
-        # TODO: uncomment this to parse TOC pages as well, commented for debugging purposes. Uncomment later
         # TOC pagination
-        # next_page_sel = toc.get("next_page")
-        # if next_page_sel:
-        #     next_page_href = response.css(next_page_sel).get()
-        #     if next_page_href:
-        #         url = urljoin(response.url, next_page_href)
-        #         yield Request(
-        #             url,
-        #             callback=self.parse_toc,
-        #             meta={"target_key": t_key, "page_type": "toc", "use_playwright": use_pw},
-        #         )
+        next_page_sel = toc.get("next_page")
+        if next_page_sel:
+            # Support next_page being a string or a list of selectors
+            next_page_href = self._first_css_get(response, next_page_sel)
+            if next_page_href:
+                url = urljoin(response.url, next_page_href)
+                yield Request(
+                    url,
+                    callback=self.parse_toc,
+                    meta={"target_key": t_key, "page_type": "toc"},
+                )
 
 
     """
@@ -180,8 +192,20 @@ class NovelSpider(RedisSpider):
         chapter_num_sel = chap.get("chapter_num")
 
         title = response.css(title_sel).get() if title_sel else None
-        body = response.css(body_sel).getall() if body_sel else None
         series_slug = response.css(series_sel).get() if series_sel else None
+
+        # Extract chapter text using configured selector (text-only)
+        chapter_text = None
+        if body_sel:
+            try:
+                parts = response.css(body_sel).getall()
+                if parts:
+                    chapter_text = "\n".join(p for p in parts if p is not None)
+            except Exception as e:
+                self.logger.warning(f"Failed to extract chapter_text with selector '{body_sel}' on {response.url}: {e}")
+
+        # Use the entire page body for body_html (outer HTML of <body>, fallback to full response)
+        body_html = response.css("body").get() or response.text
 
         chapter_num = None
         if chapter_num_sel and isinstance(chapter_num_sel, dict):
@@ -197,23 +221,17 @@ class NovelSpider(RedisSpider):
         else:
             chapter_num = response.css(chapter_num_sel).get()
 
-        if body:
-            body_html = "\n".join(body)
-        else:
-            body_html = None
-
         yield {
             "url": response.url,
             "source_domain": response.url,
             "target_key": t_key,
             "title": title,
             "body_html": body_html,
+            "chapter_text": chapter_text,
             "series": series_slug,
             "chapter_num": chapter_num,
             "fetched_at": int(time.time()),
-            "status": 200,
             "meta": {
-                "toc_meta": response.meta.get("toc_meta"),
+                "series_data": response.meta.get("toc_meta"),
             },
         }
-

@@ -1,3 +1,4 @@
+lxml
 booktype
 scrapy>=2.13.0
 scrapy-redis>=0.9.1

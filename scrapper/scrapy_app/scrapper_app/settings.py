@@ -11,7 +11,7 @@ _DEF_METRICS_PORT = int((get_setting("METRICS_PORT", 8000)))
 BOT_NAME = "novel_crawler"
 SPIDER_MODULES = ["scrapper_app.spiders"]
 NEWSPIDER_MODULE = "scrapper_app.spiders"
-ROBOTSTXT_OBEY = True
+ROBOTSTXT_OBEY = False
 
 # Concurrency & throttling
 CONCURRENT_REQUESTS = int(get_setting("CONCURRENT_REQUESTS", 32))
@@ -41,11 +41,14 @@ REDIS_START_URLS_KEY = get_setting("REDIS_START_URLS_KEY", "start_urls:novel_toc
 # Pipelines
 ITEM_PIPELINES = {
     "scrapper_app.pipelines.validate.ParseAndValidateItemPipeline": 250,
-    # "scrapper_app.pipelines.content_cleanup.CleanSeriesMetaPipeline": 275,
-    # "scrapper_app.pipelines.content_cleanup.CleanChapterPipeline": 300,
-    # "scrapper_app.pipelines.storage.RollingJSONLPipeline": 500,
-    # "scrapper_app.pipelines.db_index.PostgresIndexPipeline": 550,
+    "scrapper_app.pipelines.content_cleanup.CleanChapterPipeline": 300,
+    "scrapper_app.pipelines.storage.RollingJSONLPipeline": 500,
 }
+
+# Enable Postgres indexing pipeline only when DSN is provided
+POSTGRES_DSN = get_setting("POSTGRES_DSN")
+if POSTGRES_DSN:
+    ITEM_PIPELINES["scrapper_app.pipelines.db_index.PostgresIndexPipeline"] = 550
 
 # Extensions (Prometheus)
 EXTENSIONS = {

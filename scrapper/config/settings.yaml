@@ -2,6 +2,9 @@
 BOT_NAME: novel_scrapper
 ROBOTSTXT_OBEY: True
 
+# Filter
+DONOT_FILTER: False
+
 # Concurrency & throttling
 CONCURRENT_REQUESTS: 48
 CONCURRENT_REQUESTS_PER_DOMAIN: 6

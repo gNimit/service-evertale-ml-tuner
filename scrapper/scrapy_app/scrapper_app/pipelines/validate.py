@@ -17,13 +17,16 @@ class ParseAndValidateItemPipeline:
         ad = ItemAdapter(item)
         meta = ad.get("meta") or {}
         if not isinstance(meta, dict):
+            self.logger.warning("Missing or invalid meta: %s", meta)
             meta = {}
         if meta.get("failure"):
+            self.logger.warning("Item already failed validation: %s", item)
             return item
 
         try:
             parsed = self.parse_item(item)
         except Exception as e:
+            self.logger.exception("Error parsing item: %s", item)
             spider.logger.warning("Pre-validation parse failed: %s", e)
             meta["failure"] = True
             meta["error"] = {"stage": "parse", "detail": str(e)}
@@ -34,6 +37,7 @@ class ParseAndValidateItemPipeline:
         try:
             validated = ChapterItem(**ItemAdapter(parsed).asdict())
         except ValidationError as e:
+            self.logger.exception("Error validating item: %s", parsed)
             spider.logger.warning("Validation error: %s", e)
             meta = ItemAdapter(parsed).get("meta") or {}
             if not isinstance(meta, dict):
@@ -43,7 +47,7 @@ class ParseAndValidateItemPipeline:
             ItemAdapter(parsed)["meta"] = meta
             raise DropItem(f"Validation failed: {e}")
 
-        return validated.model_dump()
+        return validated.model_dump(mode="json", exclude_none=True, exclude_unset=True)
 
     def parse_item(self, item):
         """
@@ -61,11 +65,16 @@ class ParseAndValidateItemPipeline:
 
         meta = data.get("meta") or {}
         if not isinstance(meta, dict):
+            self.logger.warning("Missing or invalid meta: %s", meta)
             meta = {}
         if meta.get("failure"):
+            self.logger.warning("Item already failed validation: %s", item)
             data["meta"] = meta
             return data
 
+        series_data = meta.get("series_data") or {}
+
+        # Extract url and source_domain
         url = data.get("url")
         if not url or not isinstance(url, str):
             raise ValueError("Missing or invalid url")
@@ -79,6 +88,7 @@ class ParseAndValidateItemPipeline:
         if not data.get("id"):
             data["id"] = url
 
+        # Extract and normalize chapter_num
         chap_num = data.get("chapter_num")
         if chap_num is not None:
             try:
@@ -87,9 +97,24 @@ class ParseAndValidateItemPipeline:
                 # Leave as None if it cannot be parsed
                 data["chapter_num"] = None
 
+        # Extract and normalize series_title and series_tags
+        series_title = data.get("series_title")
+        if not series_title:
+            series_title = series_data.get("title")
+            if series_title is None:
+                series_title = series_data.get("toc_title")
+            if series_title is None:
+                series_title = "unknown"
+        data["series"] = series_title
+
         series_tags = data.get("series_tags")
         if series_tags is None:
-            series_tags = []
+            if isinstance(series_data, dict):
+                series_tags = series_data.get("tags")
+                if series_tags is None:
+                    series_tags = series_data.get("toc_tags")
+                    if series_tags is None:
+                        series_tags = []
         elif isinstance(series_tags, str):
             series_tags = [series_tags]
         elif isinstance(series_tags, (set, tuple)):
@@ -100,19 +125,30 @@ class ParseAndValidateItemPipeline:
         series_tags = [str(t).strip() for t in series_tags if t is not None]
         data["series_tags"] = series_tags
 
+        # Extract and normalize author
         author = data.get("author")
         if not author:
-            toc_meta = meta.get("toc_meta") or {}
-            if isinstance(toc_meta, dict):
-                toc_author = toc_meta.get("author")
-                if isinstance(toc_author, list):
-                    author = next((a for a in toc_author if a), None)
-                else:
-                    author = toc_author
+            toc_author = series_data.get("author")
+            if isinstance(toc_author, list):
+                author = next((a for a in toc_author if a), None)
+            else:
+                author = toc_author
         if not author:
             author = "unknown"
         data["author"] = author
 
+        # Extract and normalize status
+        status = data.get("series_status")
+        if status is None:
+            status = series_data.get("status")
+            if status is None:
+                status = "unknown"
+        else :
+            status = str(status).strip()
+
+        data["status"] = status
+
+        # Add fetched_at and content_hash
         fetched_at = data.get("fetched_at")
         if not isinstance(fetched_at, int):
             try:
@@ -129,12 +165,6 @@ class ParseAndValidateItemPipeline:
                 content_hash = hashlib.sha256(base.encode("utf-8", errors="ignore")).hexdigest()
                 data["content_hash"] = content_hash
 
-        status = data.get("status")
-        if status is not None and not isinstance(status, str):
-            data["status"] = str(status)
-
         data["meta"] = meta
 
         return data
-
-

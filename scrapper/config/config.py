@@ -30,11 +30,37 @@ def _find_scrapper_root():
 # Project Root
 SCRAPPER_ROOT = _find_scrapper_root()
 
+def _detect_mode_from_args() -> str | None:
+    """Try to detect mode from CLI args like --mode production or --mode=production."""
+    import sys
+    args = sys.argv[1:]
+    for i, a in enumerate(args):
+        if a == "--mode" and i + 1 < len(args):
+            return args[i + 1].strip().lower()
+        if a.startswith("--mode="):
+            return a.split("=", 1)[1].strip().lower()
+    return None
+
+
+def get_mode(default: str = "development") -> str:
+    """
+    Return current runtime mode: development | production | testing.
+    Resolution order: SCRAPPER_MODE env -> CLI --mode -> default.
+    """
+    mode = os.getenv("SCRAPPER_MODE") or _detect_mode_from_args() or default
+    mode = str(mode).strip().lower()
+    if mode not in {"development", "production", "testing"}:
+        mode = default
+    return mode
+
+
 def _load_env_vars():
     """
     Load environment variables from the .env file in the scrapper root directory.
+    Picks .scrapper.<mode>.env by default unless SCRAPPER_ENV_FILE is explicitly set.
     """
-    env_file = os.getenv("SCRAPPER_ENV_FILE", str(SCRAPPER_ROOT / ".scrapper.env"))
+    default_env = f".scrapper.{get_mode()}.env"
+    env_file = os.getenv("SCRAPPER_ENV_FILE", str(SCRAPPER_ROOT / default_env))
     try:
         env_path = Path(env_file)
         if env_path.exists():
@@ -49,6 +75,8 @@ def _load_env_vars():
                         __env_vars[k] = v
                         if k not in os.environ:
                             os.environ[k] = v
+        else:
+            logging.warning(f"Env file not found at {env_file}; proceeding with process env only.")
     except Exception as e:
         logging.error(f"Failed to load environment variables from {env_file}: {e}")
         raise Exception(f"Failed to load environment variables from {env_file}: {e}")
@@ -103,7 +131,7 @@ def get_setting(key, default=None, cast=None):
     """
         Get a setting with proper precedence:
         1. Environment variables (os.environ)
-        2. Environment file (.scrapper.env)
+        2. Environment file (.scrapper.development.env / .scrapper.development.env)
         3. YAML configuration
         4. Default value
 
