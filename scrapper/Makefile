@@ -15,7 +15,8 @@ scrapper-help:
 	@echo "  make scrapper-seed      # Seed start URLs into Redis"
 
 scrapper-build:
-	sudo docker compose -f $(SCRAPPER_COMPOSE) build
+	rm build.log
+	sudo docker compose -f $(SCRAPPER_COMPOSE) build --no-cache --progress=plain 2>&1 | tee build.log
 
 scrapper-up:
 	mkdir -p $(DATA_DIR)

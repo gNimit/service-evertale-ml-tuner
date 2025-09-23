@@ -47,7 +47,7 @@ services:
       - redis
     environment:
       - REDIS_URL=redis://redis:${REDIS_PORT:-6379}/0
-    command: ["python", "scrapper/tools/seed.py", "--redis", "redis://redis:${REDIS_PORT:-6379}/0", "--key", "start_urls:novel_toc", "--target", "site_empire_novel"]
+    command: ["python", "scrapper/tools/seed.py", "--redis", "redis://redis:${REDIS_PORT:-6379}/0", "--key", "start_urls:novel_toc"]
 
 volumes:
   pg_data:
