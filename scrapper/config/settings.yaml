@@ -1,6 +1,6 @@
 # Scrapper settings
 BOT_NAME: novel_scrapper
-ROBOTSTXT_OBEY: True
+ROBOTSTXT_OBEY: False
 
 # Filter
 DONOT_FILTER: False

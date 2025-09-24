@@ -4,7 +4,7 @@ Scrapper spider to scrape novels from various sources.
 import logging
 import re
 import time
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from scrapy.http import Response, Request
 from scrapy_redis.spiders import RedisSpider
@@ -43,6 +43,53 @@ class NovelSpider(RedisSpider):
             return None
         return response.css(selectors).get()
 
+    def _resolve_next_url(self, base_url: str, href: str) -> str | None:
+        """Sanitize and resolve a next-page href against a base URL.
+        Ensures root path '/' before query, strips fragments, and supports '?', '&', and 'key=val' hrefs.
+        Skips non-navigable hrefs like '#' or 'javascript:...'.
+        """
+        if href is None:
+            return None
+        href = str(href).strip()
+        if not href:
+            return None
+        low = href.lower()
+        if low == "#" or low.startswith("javascript:") or low.startswith("mailto:") or low.startswith("tel:"):
+            self.logger.debug(f"Ignoring non-navigable next_page href '{href}' on {base_url}")
+            return None
+        try:
+            if "#" in href:
+                href = href.split("#", 1)[0]
+
+            parsed_href = urlparse(href)
+
+            # Absolute URL: ensure it has '/' path before query
+            if parsed_href.scheme and parsed_href.netloc:
+                if not parsed_href.path:
+                    parsed_href = parsed_href._replace(path="/")
+                # Also ensure fragment is removed (already handled above, but keep consistent)
+                parsed_href = parsed_href._replace(fragment="")
+                return parsed_href.geturl()
+
+            # Relative URL cases
+            # Convert '&page=3' to '?page=3' and ensure base has '/' path
+            if href.startswith("?") or href.startswith("&"):
+                parsed_base = urlparse(base_url)
+                base_url_norm = base_url
+                if not parsed_base.path:
+                    base_url_norm = base_url.rstrip("/") + "/"
+                if href.startswith("&"):
+                    href = "?" + href.lstrip("&")
+                return urljoin(base_url_norm, href)
+
+            if re.match(r"^[a-z0-9_\-]+=", href, re.IGNORECASE):
+                return self._resolve_next_url(base_url, "?" + href)
+
+            return urljoin(base_url, href)
+        except Exception as e:
+            self.logger.warning(f"Failed to resolve next_page URL from base '{base_url}' and href '{href}': {e}")
+            return None
+
     def parse(self, response: Response, **kwargs):
         meta = response.meta
         t_key = meta.get("target_key")
@@ -50,13 +97,12 @@ class NovelSpider(RedisSpider):
             self.logger.error(f"Missing/unknown target key in meta: {meta}")
             return
         cfg = self.targets_cfg[t_key]
-        use_pw = bool(meta.get("use_playwright", cfg.get("use_playwright", False)))
 
         page_type = meta.get("page_type", "landing")
         if page_type == "landing":
             landing_kind = meta.get("landing_kind", cfg.get("landing_kind", "catalog"))
             if landing_kind == "catalog":
-                yield from self.parse_catalog(response, cfg, t_key, use_pw)
+                yield from self.parse_catalog(response)
             else:
                 yield from self.parse_toc(response)
         elif page_type == "toc":
@@ -70,7 +116,10 @@ class NovelSpider(RedisSpider):
     """
     Parse catalog pages.
     """
-    def parse_catalog(self, response: Response, cfg: dict, t_key: str, use_pw: bool = False):
+    def parse_catalog(self, response: Response):
+        t_key = response.meta.get("target_key")
+        cfg = self.targets_cfg[t_key]
+
         self.logger.debug(f"Parsing catalog page for target {t_key}")
         cat = cfg.get("catalog", {})
         novel_selectors = cat.get("novel_links", [])
@@ -82,10 +131,6 @@ class NovelSpider(RedisSpider):
 
             if links_per_sel:
                 links.extend(links_per_sel)
-
-            if novel_title_sel and index < len(novel_title_sel):
-                # Use append since get() returns a single string (or None)
-                titles.append(response.css(novel_title_sel[index]).get())
 
         for index, href in enumerate(links):
             url = urljoin(response.url, href)
@@ -101,10 +146,8 @@ class NovelSpider(RedisSpider):
                     "target_key": t_key,
                     "landing_kind": "catalog",
                     "page_type": "catalog",
-                    "novel_title": titles[index] if index < len(titles) else None,
-                    "use_playwright": use_pw
                 },
-                dont_filter=True,
+                dont_filter=True
             )
 
         # Catalog pagination
@@ -112,15 +155,14 @@ class NovelSpider(RedisSpider):
         if next_page_sel:
             # Support next_page being a string or a list of selectors
             next_page_href = self._first_css_get(response, next_page_sel)
-            if next_page_href:
-                url = urljoin(response.url, next_page_href)
+            url = self._resolve_next_url(response.url, next_page_href) if next_page_href else None
+            if url:
                 yield Request(
                     url,
                     callback=self.parse_catalog,
                     meta={
                         "target_key": t_key,
                         "page_type": "catalog",
-                        "use_playwright": use_pw
                     },
                     dont_filter=True,
                 )
@@ -153,7 +195,7 @@ class NovelSpider(RedisSpider):
             "language": language,
             "author": author,
             "status": status,
-            "catalog_novel_title": response.meta.get("novel_title"),
+            "catalog_novel_title": title,
         }
 
         links = []
@@ -168,7 +210,6 @@ class NovelSpider(RedisSpider):
                 url,
                 callback=self.parse_chapter,
                 meta={"target_key": t_key, "page_type": "toc", "toc_meta": toc_meta},
-                dont_filter=True,
             )
 
         # TOC pagination
@@ -176,12 +217,13 @@ class NovelSpider(RedisSpider):
         if next_page_sel:
             # Support next_page being a string or a list of selectors
             next_page_href = self._first_css_get(response, next_page_sel)
-            if next_page_href:
-                url = urljoin(response.url, next_page_href)
+            url = self._resolve_next_url(response.url, next_page_href) if next_page_href else None
+            if url:
                 yield Request(
                     url,
                     callback=self.parse_toc,
                     meta={"target_key": t_key, "page_type": "toc"},
+                    dont_filter=True,
                 )
 
 
@@ -226,12 +268,12 @@ class NovelSpider(RedisSpider):
                         chapter_num = int(match.group(1))
                     except ValueError:
                         self.logger.warning(f"Failed to parse chapter number from URL: {url}")
-        else:
+        elif chapter_num_sel:
             chapter_num = response.css(chapter_num_sel).get()
 
         yield {
             "url": response.url,
-            "source_domain": response.url,
+            "source_domain": urlparse(response.url).netloc,
             "target_key": t_key,
             "title": title,
             "body_html": body_html,
