@@ -1,0 +1,54 @@
+site_empire_novel:
+  use_playwright: false
+  landing_kind: catalog        # or single
+  start_urls:
+    - https://www.empirenovel.com/
+  catalog:
+    novel_links:
+      - h4 a::attr(href)
+    novel_title:
+      - h4 a::text
+    next_page: a.page-link[rel="next"]::attr(href)
+  novel_toc:
+    title: h1::text
+    tags: a[itemprop="genre"]::text
+    author: span[itemprop="author"]::text
+    summary: span#more::text
+    chapter_links:
+      - a.chapter_link::attr(href)
+    next_page:
+      - a.page-link[rel="next"]::attr(href)
+  chapter:
+    title: h3::text
+    body: p::text
+    series: h1::text
+    chapter_num:
+      extract_from: url
+      pattern: '/novel/[^/]+/(\d+)'
+#site_novel_bin:
+#  use_playwright: false
+#  landing_kind: catalog
+#  start_urls:
+#    - https://novelbin.com/sort/latest
+#  catalog:
+#    novel_links:
+#      - .novel-title a::attr(href)
+#    novel_title:
+#      - .novel-title a::text
+#    next_page: .next a::attr(href)
+#  novel_toc:
+#    title: h1::text
+#    tags: a[itemprop="genre"]::text
+#    author: span[itemprop="author"]::text
+#    summary: span#more::text
+#    chapter_links:
+#      - a.chapter_link::attr(href)
+#    next_page:
+#      - a.page-link[rel="next"]::attr(href)
+#  chapter:
+#    title: h3::text
+#    body: p::text
+#    series: h1::text
+#    chapter_num:
+#      extract_from: url
+#      pattern: '/novel/[^/]+/(\d+)'
