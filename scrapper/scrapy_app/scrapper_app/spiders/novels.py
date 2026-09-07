@@ -147,7 +147,6 @@ class NovelSpider(RedisSpider):
                     "landing_kind": "catalog",
                     "page_type": "catalog",
                 },
-                dont_filter=True
             )
 
         # Catalog pagination
@@ -164,7 +163,6 @@ class NovelSpider(RedisSpider):
                         "target_key": t_key,
                         "page_type": "catalog",
                     },
-                    dont_filter=True,
                 )
 
     """
@@ -183,11 +181,12 @@ class NovelSpider(RedisSpider):
         status_sel = toc.get("status")
         chapter_selectors = toc.get("chapter_links", [])
 
-        title = response.css(title_sel).get() if title_sel else None
-        tags = response.css(tags_sel).getall() if tags_sel else []
-        language = response.css(language_sel).get() if language_sel else None
-        author = response.css(author_sel).getall() if author_sel else None
-        status = response.css(status_sel).get() if status_sel else None
+        existing_toc_meta = response.meta.get("toc_meta") or {}
+        title = (response.css(title_sel).get() if title_sel else None) or existing_toc_meta.get("title")
+        tags = (response.css(tags_sel).getall() if tags_sel else None) or existing_toc_meta.get("tags") or []
+        language = (response.css(language_sel).get() if language_sel else None) or existing_toc_meta.get("language")
+        author = (response.css(author_sel).getall() if author_sel else None) or existing_toc_meta.get("author")
+        status = (response.css(status_sel).get() if status_sel else None) or existing_toc_meta.get("status")
 
         toc_meta = {
             "title": title,
@@ -222,8 +221,7 @@ class NovelSpider(RedisSpider):
                 yield Request(
                     url,
                     callback=self.parse_toc,
-                    meta={"target_key": t_key, "page_type": "toc"},
-                    dont_filter=True,
+                    meta={"target_key": t_key, "page_type": "toc", "toc_meta": toc_meta},
                 )
 
 
@@ -273,6 +271,7 @@ class NovelSpider(RedisSpider):
 
         yield {
             "url": response.url,
+            "http_status": getattr(response, "status", 200),
             "source_domain": urlparse(response.url).netloc,
             "target_key": t_key,
             "title": title,

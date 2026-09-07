@@ -47,7 +47,7 @@ class ParseAndValidateItemPipeline:
             ItemAdapter(parsed)["meta"] = meta
             raise DropItem(f"Validation failed: {e}")
 
-        return validated.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+        return validated.model_dump(mode="json")
 
     def parse_item(self, item):
         """
@@ -146,7 +146,15 @@ class ParseAndValidateItemPipeline:
         else :
             status = str(status).strip()
 
+        data["series_status"] = status
         data["status"] = status
+
+        # Preserve and normalize http_status
+        http_status = data.get("http_status")
+        try:
+            data["http_status"] = int(http_status) if http_status is not None else 200
+        except (ValueError, TypeError):
+            data["http_status"] = 200
 
         # Add fetched_at and content_hash
         fetched_at = data.get("fetched_at")

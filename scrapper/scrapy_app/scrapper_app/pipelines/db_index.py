@@ -7,6 +7,8 @@ from urllib.parse import urlparse
 import psycopg2
 from itemadapter import ItemAdapter
 
+from twisted.internet import threads
+
 from scrapper.scrapy_app.scrapper_app.db.sql import (
     DDL_CREATE_NOVELS,
     DDL_CREATE_CHAPTERS,
@@ -79,23 +81,36 @@ class PostgresIndexPipeline:
                 self.cur.execute(s + ";")
 
     def process_item(self, item, spider):
+        return threads.deferToThread(self._process_item_sync, item, spider)
+
+    def _process_item_sync(self, item, spider):
         ad = ItemAdapter(item)
         url = ad.get("url")
-        status = ad.get("status")
         meta = ad.get("meta") or {}
+
         # Handle failures as special-case items
         if meta.get("failure"):
             self.logger.info(f"Processing failure for URL: {url}")
             domain = ad.get("source_domain") or urlparse(url).netloc
-            reason = meta.get("reason")
+            reason = meta.get("reason") or str(meta.get("error"))
+            http_status = ad.get("http_status")
+            try:
+                status_code = int(http_status) if http_status is not None else None
+            except (ValueError, TypeError):
+                status_code = None
             self.cur.execute(
                 SQL_UPSERT_FAILURE,
-                (url, domain, reason, int(status) if status is not None else None),
+                (url, domain, reason, status_code),
             )
             return item
 
         title = ad.get("title")
-        status = int(ad.get("status", 0))
+        http_status = ad.get("http_status")
+        try:
+            status_code = int(http_status) if http_status is not None else 200
+        except (ValueError, TypeError):
+            status_code = 200
+
         # Prefer pre-computed content_hash from previous pipeline; fallback to computing it
         content_hash = ad.get("content_hash")
         if not content_hash:
@@ -110,7 +125,7 @@ class PostgresIndexPipeline:
         self.logger.debug(f"Upserting chapter for URL: {url}")
         self.cur.execute(
             SQL_UPSERT_CHAPTER,
-            (url, series_slug, chapter_num, title, fetched_at, status, content_hash),
+            (url, series_slug, chapter_num, title, fetched_at, status_code, content_hash),
         )
 
         # Upsert novel row minimally

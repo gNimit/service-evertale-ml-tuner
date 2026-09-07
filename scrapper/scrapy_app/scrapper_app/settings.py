@@ -35,13 +35,17 @@ COMPRESSION_ENABLED = True
 SCHEDULER = "scrapy_redis.scheduler.Scheduler"
 DUPEFILTER_CLASS = "scrapy_redis.dupefilter.RFPDupeFilter"
 SCHEDULER_PERSIST = True
-REDIS_URL = f"redis://{get_setting('REDIS_HOST', 'localhost')}:{_DEF_REDIS_PORT}/0"
+_REDIS_URL_SETTING = get_setting("REDIS_URL")
+if _REDIS_URL_SETTING:
+    REDIS_URL = _REDIS_URL_SETTING
+else:
+    REDIS_URL = f"redis://{get_setting('REDIS_HOST', 'localhost')}:{_DEF_REDIS_PORT}/0"
 REDIS_START_URLS_KEY = get_setting("REDIS_START_URLS_KEY", "start_urls:novel_toc")
 
 # Pipelines
 ITEM_PIPELINES = {
-    "scrapper_app.pipelines.validate.ParseAndValidateItemPipeline": 250,
-    "scrapper_app.pipelines.content_cleanup.CleanChapterPipeline": 300,
+    "scrapper_app.pipelines.content_cleanup.CleanChapterPipeline": 250,
+    "scrapper_app.pipelines.validate.ParseAndValidateItemPipeline": 300,
     "scrapper_app.pipelines.storage.RollingJSONLPipeline": 500,
 }
 

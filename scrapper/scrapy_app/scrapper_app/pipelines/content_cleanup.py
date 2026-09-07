@@ -1,7 +1,7 @@
 import logging
 try:
     import trafilatura
-except ImportError or ModuleNotFoundError or RuntimeError:
+except (ImportError, ModuleNotFoundError, RuntimeError):
     trafilatura = None
 from lxml import html as lxml_html
 from itemadapter import ItemAdapter
