@@ -24,11 +24,11 @@ services:
     image: evertale/scrapper-crawler:latest
     working_dir: /app/scrapper/scrapy_app
     environment:
-      - REDIS_URL=redis://redis:${REDIS_PORT:-6379}/0
+      - REDIS_URL=redis://redis:6379/0
       - RAW_OUT_DIR=/data/raw/novels
-      - METRICS_PORT=${METRICS_PORT:-8000}
+      - METRICS_PORT=8000
       - LOG_LEVEL=INFO
-      - POSTGRES_DSN=dbname=scraper user=scraper password=scraper host=postgres port=${POSTGRES_PORT:-5432}
+      - POSTGRES_DSN=dbname=scraper user=scraper password=scraper host=postgres port=5432
       - SCRAPPER_SETTINGS_YAML=/app/scrapper/config/settings.yaml
     depends_on:
       - redis
@@ -46,8 +46,8 @@ services:
       - crawler
       - redis
     environment:
-      - REDIS_URL=redis://redis:${REDIS_PORT:-6379}/0
-    command: ["python", "scrapper/tools/seed.py", "--redis", "redis://redis:${REDIS_PORT:-6379}/0", "--key", "start_urls:novel_toc"]
+      - REDIS_URL=redis://redis:6379/0
+    command: ["python", "scrapper/tools/seed.py", "--redis", "redis://redis:6379/0", "--key", "start_urls:novel_toc"]
 
 volumes:
   pg_data:

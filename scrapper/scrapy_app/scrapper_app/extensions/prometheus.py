@@ -19,11 +19,15 @@ FAILURES = Counter("scrapy_target_failures_total", "Failures per target", ["spid
 NOVELS = Counter("scrapy_novels_discovered_total", "Novels discovered from catalog pages", ["spider", "target"]) 
 
 
+from twisted.internet.task import LoopingCall
+
+
 class PrometheusExtension:
     def __init__(self, port: int, redis_url: str | None):
         self.port = port
         self.redis_url = redis_url
         self.r = None
+        self._queue_poll_loop = None
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -46,15 +50,39 @@ class PrometheusExtension:
 
     def spider_opened(self, spider):
         # Start Prometheus HTTP server once per process (safe to call multiple times; no-op after started)
-        start_http_server(self.port)
+        try:
+            start_http_server(self.port)
+        except Exception:
+            pass
+
         if self.redis_url:
             try:
                 self.r = redis.from_url(self.redis_url)
+                self._queue_poll_loop = LoopingCall(self._poll_queue_depth, spider)
+                self._queue_poll_loop.start(5.0, now=True)
             except Exception:
                 self.r = None
 
     def spider_closed(self, spider):
-        pass
+        if self._queue_poll_loop and self._queue_poll_loop.running:
+            try:
+                self._queue_poll_loop.stop()
+            except Exception:
+                pass
+
+    def _poll_queue_depth(self, spider):
+        if not self.r:
+            return
+        try:
+            # Check Scrapy-Redis request queue first, then fallback to start_urls key
+            req_key = f"{spider.name}:requests"
+            depth = self.r.zcard(req_key) if self.r.type(req_key) == b"zset" else self.r.llen(req_key)
+            if depth == 0:
+                start_key = os.environ.get("REDIS_START_URLS_KEY", "start_urls:novel_toc")
+                depth = self.r.llen(start_key)
+            QUEUE.labels(spider=spider.name).set(depth)
+        except Exception:
+            pass
 
     def item_scraped(self, item, response, spider):
         ITEMS.labels(spider=spider.name).inc()
@@ -119,11 +147,3 @@ class PrometheusExtension:
                     FAILURES.labels(spider=spider.name, target=str(target), kind=f"http_{status}").inc()
         except Exception:
             pass
-        # Queue depth from Redis (global per-spider)
-        if self.r:
-            key = os.environ.get("REDIS_START_URLS_KEY", f"queue:{spider.name}")
-            try:
-                depth = self.r.llen(key)
-                QUEUE.labels(spider=spider.name).set(depth)
-            except Exception:
-                pass

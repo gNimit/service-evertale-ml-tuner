@@ -9,21 +9,26 @@ import redis
 from scrapper.config.config import get_setting, get_targets
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--redis", default=f"redis://{get_setting('REDIS_HOST')}:{get_setting('REDIS_PORT')}")
-    parser.add_argument("--key", default=get_setting("REDIS_START_URLS_KEY"))
+    default_redis = get_setting("REDIS_URL") or f"redis://{get_setting('REDIS_HOST', 'localhost')}:{get_setting('REDIS_PORT', 6379)}/0"
+    parser.add_argument("--redis", default=default_redis)
+    parser.add_argument("--key", default=get_setting("REDIS_START_URLS_KEY", "start_urls:novel_toc"))
     parser.add_argument("--targets", default=",".join(get_targets().keys()))  # Defaults to all targets as comma-separated string
-    parser.add_argument("--targets_yaml", default="/app/scrapper/config/targets.yaml")
+    parser.add_argument("--targets_yaml", default=None)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
+    if args.targets_yaml:
+        import os
+        os.environ["SCRAPPER_TARGETS_YAML"] = args.targets_yaml
+
     try:
-        r = redis.Redis(host=get_setting("REDIS_HOST"), port=get_setting("REDIS_PORT"))
+        r = redis.from_url(args.redis)
+        r.ping()
         logging.info(f"Connected to Redis at {args.redis}")
     except Exception as e:
-        logging.error(f"Failed to connect to Redis: {e}")
-        raise logging.exception("Failed to connect to Redis")
+        logging.error(f"Failed to connect to Redis at {args.redis}: {e}")
+        raise
 
 
     targets = get_targets()
